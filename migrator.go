@@ -287,7 +287,7 @@ func (m Migrator) AlterColumn(value interface{}, field string) error {
 				)
 
 				// Skip ALTER for columns types that are not supported in dry run mode
-				if ctErr != nil && ctErr.Error() == "dry run not supported" {
+				if ctErr != nil && ctErr.Error() == "dry run mode unsupported" {
 					return nil
 				}
 				for _, columnType := range columnTypes {
