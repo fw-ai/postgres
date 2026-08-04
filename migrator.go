@@ -244,6 +244,25 @@ func (m Migrator) HasColumn(value interface{}, field string) bool {
 	return count > 0
 }
 
+// fieldHasPartialUniqueIndex reports whether field is covered by a unique index
+// carrying a WHERE predicate (gorm `where:`). Such an index cannot be expressed
+// as a plain UNIQUE constraint — the constraint has no predicate and would
+// reject the rows the predicate excludes — so it is left to CreateIndex, which
+// honors idx.Where.
+func fieldHasPartialUniqueIndex(s *schema.Schema, field *schema.Field) bool {
+	for _, idx := range s.ParseIndexes() {
+		if idx.Class != "UNIQUE" || idx.Where == "" {
+			continue
+		}
+		for _, opt := range idx.Fields {
+			if opt.Field == field {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func (m Migrator) MigrateColumn(value interface{}, field *schema.Field, columnType gorm.ColumnType) error {
 	// skip primary field
 	if !field.PrimaryKey {
@@ -349,7 +368,7 @@ func (m Migrator) AlterColumn(value interface{}, field string) error {
 					}
 				}
 
-				if uniq, _ := fieldColumnType.Unique(); !uniq && field.Unique {
+				if uniq, _ := fieldColumnType.Unique(); !uniq && field.Unique && !fieldHasPartialUniqueIndex(stmt.Schema, field) {
 					idxName := clause.Column{Name: m.DB.Config.NamingStrategy.IndexName(stmt.Table, field.DBName)}
 					// Not a unique constraint but a unique index
 					if !m.HasIndex(stmt.Table, idxName.Name) {
