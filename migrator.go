@@ -499,7 +499,14 @@ func (m Migrator) ColumnTypes(value interface{}) (columnTypes []gorm.ColumnType,
 			}
 
 			if column.DefaultValueValue.Valid {
-				column.DefaultValueValue.String = regexp.MustCompile(`'?(.*)\b'?:+[\w\s]+$`).ReplaceAllString(column.DefaultValueValue.String, "$1")
+				// Use a lazy quantifier instead of a word boundary so defaults
+				// whose inner value does not end in a word character (e.g.
+				// ''::text, '{}'::jsonb) are stripped too. The \b anchor only
+				// matched when the captured value ended in a word char, so
+				// those casts survived and the column never compared equal to
+				// the gorm field default, re-emitting the same no-op ALTER on
+				// every AutoMigrate. See TestStripDefaultCast.
+				column.DefaultValueValue.String = regexp.MustCompile(`'?(.*?)'?:+[\w\s]+$`).ReplaceAllString(column.DefaultValueValue.String, "$1")
 			}
 
 			if datetimePrecision.Valid {
