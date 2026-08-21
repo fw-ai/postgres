@@ -16,9 +16,9 @@ func TestStripDefaultCast(t *testing.T) {
 	// input (postgres column default) -> expected (unquoted inner value)
 	cases := map[string]string{
 		`'ACTIVE'::text`:     `ACTIVE`,
-		`''::text`:           ``, // regression: empty-string default
+		`''::text`:           ``,
 		`'default'::text`:    `default`,
-		`'{}'::jsonb`:        `{}`, // regression: non-word-ending inner value
+		`'{}'::jsonb`:        `{}`,
 		`5::int`:             `5`,
 		`5`:                  `5`, // no cast -> unchanged
 		`false`:              `false`,
