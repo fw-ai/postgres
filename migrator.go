@@ -499,7 +499,9 @@ func (m Migrator) ColumnTypes(value interface{}) (columnTypes []gorm.ColumnType,
 			}
 
 			if column.DefaultValueValue.Valid {
-				column.DefaultValueValue.String = regexp.MustCompile(`'?(.*)\b'?:+[\w\s]+$`).ReplaceAllString(column.DefaultValueValue.String, "$1")
+				// Lazy quantifier instead of \b so non-word-ending defaults
+				// (e.g. ''::text, '{}'::jsonb) strip their cast too.
+				column.DefaultValueValue.String = regexp.MustCompile(`'?(.*?)'?:+[\w\s]+$`).ReplaceAllString(column.DefaultValueValue.String, "$1")
 			}
 
 			if datetimePrecision.Valid {
