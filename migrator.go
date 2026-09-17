@@ -570,6 +570,39 @@ func (m Migrator) ColumnTypes(value interface{}) (columnTypes []gorm.ColumnType,
 				}
 			}
 			columnTypeRows.Close()
+
+			// Unique indexes (gorm's uniqueIndex tag) are invisible to
+			// table_constraints, so a single-column unique index would report
+			// Unique()=false while schema.ParseIndexes sets field.Unique=true
+			// for it. That mismatch makes MigrateColumn flag a perpetual
+			// ALTER on an already-correct column. Count unique indexes too.
+			// Partial (WHERE-clause) indexes are included: field.Unique is
+			// set for them as well, and AlterColumn's ADD CONSTRAINT path is
+			// already guarded by fieldHasPartialUniqueIndex.
+			indexTypeRows, err := m.DB.Raw(`SELECT a.attname AS column_name
+FROM pg_class t
+JOIN pg_index ix ON t.oid = ix.indrelid
+JOIN pg_namespace n ON n.oid = t.relnamespace
+JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = ANY(ix.indkey)
+WHERE n.nspname = ? AND t.relname = ? AND ix.indisunique AND NOT ix.indisprimary AND ix.indnatts = 1`, currentSchema, table).Rows()
+			if err != nil {
+				return err
+			}
+			for indexTypeRows.Next() {
+				var name string
+				if err := indexTypeRows.Scan(&name); err != nil {
+					indexTypeRows.Close()
+					return err
+				}
+				for _, c := range columnTypes {
+					mc := c.(*migrator.ColumnType)
+					if mc.NameValue.String == name {
+						mc.UniqueValue = sql.NullBool{Bool: true, Valid: true}
+						break
+					}
+				}
+			}
+			indexTypeRows.Close()
 		}
 
 		// check column type
